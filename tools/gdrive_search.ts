@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { GDriveSearchInput, InternalToolResponse } from "./types.js";
+import { getValidCredentials } from "../auth.js";
 
 export const schema = {
   name: "gdrive_search",
@@ -7,6 +8,10 @@ export const schema = {
   inputSchema: {
     type: "object",
     properties: {
+      userId: {
+        type: "string",
+        description: "User ID for authentication",
+      },
       query: {
         type: "string",
         description: "Search query",
@@ -22,64 +27,85 @@ export const schema = {
         optional: true,
       },
     },
-    required: ["query"],
+    required: ["userId", "query"],
   },
 } as const;
 
 export async function search(
-  args: GDriveSearchInput,
+  args: GDriveSearchInput
 ): Promise<InternalToolResponse> {
-  const drive = google.drive("v3");
-  const userQuery = args.query.trim();
-  let searchQuery = "";
+  try {
+    // Get user-specific authentication
+    const auth = await getValidCredentials(args.userId);
+    const drive = google.drive({ version: "v3", auth });
 
-  // If query is empty, list all files
-  if (!userQuery) {
-    searchQuery = "trashed = false";
-  } else {
-    // Escape special characters in the query
-    const escapedQuery = userQuery.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const userQuery = args.query.trim();
+    let searchQuery = "";
 
-    // Build search query with multiple conditions
-    const conditions = [];
+    // If query is empty, list all files
+    if (!userQuery) {
+      searchQuery = "trashed = false";
+    } else {
+      // Escape special characters in the query
+      const escapedQuery = userQuery
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'");
 
-    // Search in title
-    conditions.push(`name contains '${escapedQuery}'`);
+      // Build search query with multiple conditions
+      const conditions = [];
 
-    // If specific file type is mentioned in query, add mimeType condition
-    if (userQuery.toLowerCase().includes("sheet")) {
-      conditions.push("mimeType = 'application/vnd.google-sheets.spreadsheet'");
+      // Search in title
+      conditions.push(`name contains '${escapedQuery}'`);
+
+      // If specific file type is mentioned in query, add mimeType condition
+      if (userQuery.toLowerCase().includes("sheet")) {
+        conditions.push(
+          "mimeType = 'application/vnd.google-sheets.spreadsheet'"
+        );
+      }
+
+      searchQuery = `(${conditions.join(" or ")}) and trashed = false`;
     }
 
-    searchQuery = `(${conditions.join(" or ")}) and trashed = false`;
+    const res = await drive.files.list({
+      q: searchQuery,
+      pageSize: args.pageSize || 10,
+      pageToken: args.pageToken,
+      orderBy: "modifiedTime desc",
+      fields: "nextPageToken, files(id, name, mimeType, modifiedTime, size)",
+    });
+
+    const fileList = res.data.files
+      ?.map((file: any) => `${file.id} ${file.name} (${file.mimeType})`)
+      .join("\n");
+
+    let response = `Found ${res.data.files?.length ?? 0} files:\n${fileList}`;
+
+    // Add pagination info if there are more results
+    if (res.data.nextPageToken) {
+      response += `\n\nMore results available. Use pageToken: ${res.data.nextPageToken}`;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: response,
+        },
+      ],
+      isError: false,
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error searching Google Drive: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+        },
+      ],
+      isError: true,
+    };
   }
-
-  const res = await drive.files.list({
-    q: searchQuery,
-    pageSize: args.pageSize || 10,
-    pageToken: args.pageToken,
-    orderBy: "modifiedTime desc",
-    fields: "nextPageToken, files(id, name, mimeType, modifiedTime, size)",
-  });
-
-  const fileList = res.data.files
-    ?.map((file: any) => `${file.id} ${file.name} (${file.mimeType})`)
-    .join("\n");
-
-  let response = `Found ${res.data.files?.length ?? 0} files:\n${fileList}`;
-
-  // Add pagination info if there are more results
-  if (res.data.nextPageToken) {
-    response += `\n\nMore results available. Use pageToken: ${res.data.nextPageToken}`;
-  }
-
-  return {
-    content: [
-      {
-        type: "text",
-        text: response,
-      },
-    ],
-    isError: false,
-  };
 }

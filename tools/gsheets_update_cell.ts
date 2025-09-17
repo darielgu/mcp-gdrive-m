@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { GSheetsUpdateCellInput, InternalToolResponse } from "./types.js";
+import { getValidCredentials } from "../auth.js";
 
 export const schema = {
   name: "gsheets_update_cell",
@@ -7,6 +8,10 @@ export const schema = {
   inputSchema: {
     type: "object",
     properties: {
+      userId: {
+        type: "string",
+        description: "User ID for authentication",
+      },
       fileId: {
         type: "string",
         description: "ID of the spreadsheet",
@@ -20,33 +25,49 @@ export const schema = {
         description: "New cell value",
       },
     },
-    required: ["fileId", "range", "value"],
+    required: ["userId", "fileId", "range", "value"],
   },
 } as const;
 
 export async function updateCell(
-  args: GSheetsUpdateCellInput,
+  args: GSheetsUpdateCellInput
 ): Promise<InternalToolResponse> {
-  const { fileId, range, value } = args;
-  const sheets = google.sheets({ version: "v4" });
+  try {
+    // Get user-specific authentication
+    const auth = await getValidCredentials(args.userId);
+    const sheets = google.sheets({ version: "v4", auth });
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: fileId,
-    range: range,
-    valueInputOption: "RAW",
-    requestBody: {
-      values: [[value]],
-    },
-  });
+    const { fileId, range, value } = args;
 
-  return {
-    content: [
-      {
-        type: "text",
-        text: `Updated cell ${range} to value: ${value}`,
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: fileId,
+      range: range,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [[value]],
       },
-    ],
-    isError: false,
-  };
-}
+    });
 
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Updated cell ${range} to value: ${value}`,
+        },
+      ],
+      isError: false,
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error updating cell: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+        },
+      ],
+      isError: true,
+    };
+  }
+}

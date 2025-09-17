@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { GDriveReadFileInput, InternalToolResponse } from "./types.js";
+import { getValidCredentials } from "../auth.js";
 
 export const schema = {
   name: "gdrive_read_file",
@@ -7,16 +8,18 @@ export const schema = {
   inputSchema: {
     type: "object",
     properties: {
+      userId: {
+        type: "string",
+        description: "User ID for authentication",
+      },
       fileId: {
         type: "string",
         description: "ID of the file to read",
       },
     },
-    required: ["fileId"],
+    required: ["userId", "fileId"],
   },
 } as const;
-
-const drive = google.drive("v3");
 
 interface FileContent {
   uri?: string;
@@ -26,23 +29,44 @@ interface FileContent {
 }
 
 export async function readFile(
-  args: GDriveReadFileInput,
+  args: GDriveReadFileInput
 ): Promise<InternalToolResponse> {
-  const result = await readGoogleDriveFile(args.fileId);
-  return {
-    content: [
-      {
-        type: "text",
-        text: `Contents of ${result.name}:\n\n${result.contents.text || result.contents.blob}`,
-      },
-    ],
-    isError: false,
-  };
+  try {
+    // Get user-specific authentication
+    const auth = await getValidCredentials(args.userId);
+    const result = await readGoogleDriveFile(args.fileId, auth);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Contents of ${result.name}:\n\n${
+            result.contents.text || result.contents.blob
+          }`,
+        },
+      ],
+      isError: false,
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error reading file: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+        },
+      ],
+      isError: true,
+    };
+  }
 }
 
 async function readGoogleDriveFile(
   fileId: string,
+  auth: any
 ): Promise<{ name: string; contents: FileContent }> {
+  const drive = google.drive({ version: "v3", auth });
+
   // First get file metadata to check mime type
   const file = await drive.files.get({
     fileId,
@@ -71,7 +95,7 @@ async function readGoogleDriveFile(
 
     const res = await drive.files.export(
       { fileId, mimeType: exportMimeType },
-      { responseType: "text" },
+      { responseType: "text" }
     );
 
     return {
@@ -86,7 +110,7 @@ async function readGoogleDriveFile(
   // For regular files download content
   const res = await drive.files.get(
     { fileId, alt: "media" },
-    { responseType: "arraybuffer" },
+    { responseType: "arraybuffer" }
   );
   const mimeType = file.data.mimeType || "application/octet-stream";
   const isText =
@@ -103,4 +127,3 @@ async function readGoogleDriveFile(
     },
   };
 }
-

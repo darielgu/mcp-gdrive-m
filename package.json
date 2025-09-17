@@ -27,13 +27,22 @@
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "test:multi-user": "node test-multi-user.js",
+    "dev:web": "node server.js",
+    "dev:mcp": "node dist/index.js"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
     "@modelcontextprotocol/sdk": "0.5.0",
+    "@prisma/client": "^6.16.2",
     "dotenv": "^16.5.0",
-    "googleapis": "^144.0.0"
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "googleapis": "^144.0.0",
+    "node-fetch": "^3.3.2",
+    "open": "^10.2.0",
+    "prisma": "^6.16.2"
   },
   "devDependencies": {
     "@types/node": "^22.9.3",

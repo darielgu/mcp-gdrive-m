@@ -1,10 +1,15 @@
 import { google } from "googleapis";
+import { getValidCredentials } from "../auth.js";
 export const schema = {
     name: "gsheets_read",
     description: "Read data from a Google Spreadsheet with flexible options for ranges and formatting",
     inputSchema: {
         type: "object",
         properties: {
+            userId: {
+                type: "string",
+                description: "User ID for authentication",
+            },
             spreadsheetId: {
                 type: "string",
                 description: "The ID of the spreadsheet to read",
@@ -21,10 +26,9 @@ export const schema = {
                 description: "Optional specific sheet ID to read. If not provided with ranges, reads first sheet.",
             },
         },
-        required: ["spreadsheetId"],
+        required: ["userId", "spreadsheetId"],
     },
 };
-const sheets = google.sheets("v4");
 function getA1Notation(row, col) {
     let a1 = "";
     while (col > 0) {
@@ -65,6 +69,9 @@ async function processSheetData(response) {
 }
 export async function readSheet(args) {
     try {
+        // Get user-specific authentication
+        const auth = await getValidCredentials(args.userId);
+        const sheets = google.sheets({ version: "v4", auth });
         let response;
         if (args.ranges) {
             // Read specific ranges

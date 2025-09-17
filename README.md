@@ -1,8 +1,17 @@
-# Google Drive server
+# Google Drive MCP Server (Multi-User)
 
-This MCP server integrates with Google Drive to allow listing, reading, and searching files, as well as the ability to read and write to Google Sheets.
+This MCP server integrates with Google Drive to allow listing, reading, and searching files, as well as the ability to read and write to Google Sheets. **This version supports multiple users** with individual authentication and token management.
 
 This project includes code originally developed by Anthropic, PBC, licensed under the MIT License from [this repo](https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive).
+
+## 🚀 Multi-User Features
+
+- **Individual Authentication**: Each user has their own Google OAuth tokens
+- **Database Storage**: User tokens are securely stored in PostgreSQL
+- **Session Management**: Web-based OAuth flow with session support
+- **Token Refresh**: Automatic token refresh for all users
+- **User Management**: API endpoints for user status and management
+- **Isolated Access**: Each user only accesses their own Google Drive/Sheets data
 
 ## Components
 
@@ -12,6 +21,7 @@ This project includes code originally developed by Anthropic, PBC, licensed unde
 
   - **Description**: Search for files in Google Drive.
   - **Input**:
+    - `userId` (string): User ID for authentication.
     - `query` (string): Search query.
     - `pageToken` (string, optional): Token for the next page of results.
     - `pageSize` (number, optional): Number of results per page (max 100).
@@ -21,6 +31,7 @@ This project includes code originally developed by Anthropic, PBC, licensed unde
 
   - **Description**: Read contents of a file from Google Drive.
   - **Input**:
+    - `userId` (string): User ID for authentication.
     - `fileId` (string): ID of the file to read.
   - **Output**: Returns the contents of the specified file.
 
@@ -28,6 +39,7 @@ This project includes code originally developed by Anthropic, PBC, licensed unde
 
   - **Description**: Read data from a Google Spreadsheet with flexible options for ranges and formatting.
   - **Input**:
+    - `userId` (string): User ID for authentication.
     - `spreadsheetId` (string): The ID of the spreadsheet to read.
     - `ranges` (array of strings, optional): Optional array of A1 notation ranges (e.g., `['Sheet1!A1:B10']`). If not provided, reads the entire sheet.
     - `sheetId` (number, optional): Specific sheet ID to read. If not provided with ranges, reads the first sheet.
@@ -36,6 +48,7 @@ This project includes code originally developed by Anthropic, PBC, licensed unde
 - **gsheets_update_cell**
   - **Description**: Update a cell value in a Google Spreadsheet.
   - **Input**:
+    - `userId` (string): User ID for authentication.
     - `fileId` (string): ID of the spreadsheet.
     - `range` (string): Cell range in A1 notation (e.g., `'Sheet1!A1'`).
     - `value` (string): New cell value.
@@ -54,38 +67,100 @@ The server provides access to Google Drive files:
     - Drawings → PNG
   - Other files are provided in their native format
 
-## Getting started
+## Quick Start (Multi-User Setup)
 
-1. [Create a new Google Cloud project](https://console.cloud.google.com/projectcreate)
-2. [Enable the Google Drive API](https://console.cloud.google.com/workspace-api/products)
-3. [Configure an OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent) ("internal" is fine for testing)
-4. Add OAuth scopes `https://www.googleapis.com/auth/drive.readonly`, `https://www.googleapis.com/auth/spreadsheets`
-5. In order to allow interaction with sheets and docs you will also need to enable the [Google Sheets API](https://console.cloud.google.com/apis/api/sheets.googleapis.com/) and [Google Docs API](https://console.cloud.google.com/marketplace/product/google/docs.googleapis.com) in your workspaces Enabled API and Services section.
-6. [Create an OAuth Client ID](https://console.cloud.google.com/apis/credentials/oauthclient) for application type "Desktop App"
-7. Download the JSON file of your client's OAuth keys
-8. Rename the key file to `gcp-oauth.keys.json` and place into the path you specify with `GDRIVE_CREDS_DIR` (i.e. `/Users/username/.config/mcp-gdrive`)
-9. Note your OAuth Client ID and Client Secret. They must be provided as environment variables along with your configuration directory.
-10. You will also need to setup a .env file within the project with the following fields. You can find the Client ID and Client Secret in the Credentials section of the Google Cloud Console.
+For detailed setup instructions, see [setup-multi-user.md](./setup-multi-user.md).
 
+### Prerequisites
+
+- PostgreSQL database
+- Google Cloud project with Drive and Sheets APIs enabled
+- Node.js 18+
+
+### 1. Environment Setup
+
+Create a `.env` file:
+
+```bash
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/mcp_gdrive?schema=public"
+
+# Google OAuth
+CLIENT_ID="your-google-client-id"
+CLIENT_SECRET="your-google-client-secret"
+REDIRECT_URI="http://localhost:3000/auth/google/callback"
+
+# Session
+SESSION_SECRET="your-super-secret-session-key"
+PORT=3000
 ```
-GDRIVE_CREDS_DIR=/path/to/config/directory
-CLIENT_ID=<CLIENT_ID>
-CLIENT_SECRET=<CLIENT_SECRET>
+
+### 2. Database Setup
+
+```bash
+npm install
+npx prisma migrate dev
+npx prisma generate
+npm run build
 ```
 
-Make sure to build the server with either `npm run build` or `npm run watch`.
+### 3. Start Services
 
-### Authentication
+```bash
+# Terminal 1: Web server (for OAuth)
+node server.js
 
-Next you will need to run `node ./dist/index.js` to trigger the authentication step
+# Terminal 2: MCP server
+node dist/index.js
+```
 
-You will be prompted to authenticate with your browser. You must authenticate with an account in the same organization as your Google Cloud project.
+### 4. User Authentication
 
-Your OAuth token is saved in the directory specified by the `GDRIVE_CREDS_DIR` environment variable.
+For each user:
 
-![Authentication Prompt](https://i.imgur.com/TbyV6Yq.png)
+```bash
+# 1. Set user session
+curl http://localhost:3000/login/user123
 
-### Usage with Desktop App
+# 2. Start OAuth (opens browser)
+curl http://localhost:3000/auth/google
+
+# 3. Complete OAuth in browser
+# 4. Verify authentication
+curl http://localhost:3000/users/user123/status
+```
+
+### 5. Using with MCP Clients
+
+All tool calls must include `userId`:
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "gdrive_search",
+    "arguments": {
+      "userId": "user123",
+      "query": "my documents"
+    }
+  }
+}
+```
+
+## API Endpoints
+
+The web server provides these endpoints:
+
+- `GET /health` - Health check
+- `GET /login/:userId` - Set user session
+- `GET /users` - List all users
+- `GET /users/:userId/status` - Check user authentication status
+- `GET /auth/google` - Start OAuth flow
+- `GET /auth/google/callback` - OAuth callback
+- `GET /drive/files` - Test Drive access
+- `GET /sheets/:spreadsheetId` - Test Sheets access
+
+## Usage with Desktop App
 
 To integrate this server with the desktop app, add the following to your app's server configuration:
 
@@ -96,14 +171,18 @@ To integrate this server with the desktop app, add the following to your app's s
       "command": "npx",
       "args": ["-y", "@isaacphi/mcp-gdrive"],
       "env": {
+        "DATABASE_URL": "postgresql://username:password@localhost:5432/mcp_gdrive?schema=public",
         "CLIENT_ID": "<CLIENT_ID>",
         "CLIENT_SECRET": "<CLIENT_SECRET>",
-        "GDRIVE_CREDS_DIR": "/path/to/config/directory"
+        "REDIRECT_URI": "http://localhost:3000/auth/google/callback",
+        "SESSION_SECRET": "<SESSION_SECRET>"
       }
     }
   }
 }
 ```
+
+**Note**: For multi-user setup, you'll also need to run the web server (`node server.js`) for OAuth authentication.
 
 ## License
 

@@ -1,32 +1,52 @@
 import { google } from "googleapis";
+import { getValidCredentials } from "../auth.js";
 export const schema = {
     name: "gdrive_read_file",
     description: "Read contents of a file from Google Drive",
     inputSchema: {
         type: "object",
         properties: {
+            userId: {
+                type: "string",
+                description: "User ID for authentication",
+            },
             fileId: {
                 type: "string",
                 description: "ID of the file to read",
             },
         },
-        required: ["fileId"],
+        required: ["userId", "fileId"],
     },
 };
-const drive = google.drive("v3");
 export async function readFile(args) {
-    const result = await readGoogleDriveFile(args.fileId);
-    return {
-        content: [
-            {
-                type: "text",
-                text: `Contents of ${result.name}:\n\n${result.contents.text || result.contents.blob}`,
-            },
-        ],
-        isError: false,
-    };
+    try {
+        // Get user-specific authentication
+        const auth = await getValidCredentials(args.userId);
+        const result = await readGoogleDriveFile(args.fileId, auth);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Contents of ${result.name}:\n\n${result.contents.text || result.contents.blob}`,
+                },
+            ],
+            isError: false,
+        };
+    }
+    catch (error) {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Error reading file: ${error instanceof Error ? error.message : "Unknown error"}`,
+                },
+            ],
+            isError: true,
+        };
+    }
 }
-async function readGoogleDriveFile(fileId) {
+async function readGoogleDriveFile(fileId, auth) {
+    const drive = google.drive({ version: "v3", auth });
     // First get file metadata to check mime type
     const file = await drive.files.get({
         fileId,

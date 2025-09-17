@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+import "dotenv/config";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -33,18 +33,18 @@ const server = new Server(
       },
       tools: {},
     },
-  },
+  }
 );
 
 // Ensure we have valid credentials before making API calls
-async function ensureAuth() {
-  const auth = await getValidCredentials();
+async function ensureAuth(userId: string) {
+  const auth = await getValidCredentials(userId);
   google.options({ auth });
   return auth;
 }
 
-async function ensureAuthQuietly() {
-  const auth = await loadCredentialsQuietly();
+async function ensureAuthQuietly(userId: string) {
+  const auth = await loadCredentialsQuietly(userId);
   if (auth) {
     google.options({ auth });
   }
@@ -52,7 +52,12 @@ async function ensureAuthQuietly() {
 }
 
 server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
-  await ensureAuthQuietly();
+  const userId =
+    typeof request.params?.userId === "string"
+      ? request.params.userId
+      : undefined;
+  if (!userId) throw new Error("Missing userId in request");
+  await ensureAuthQuietly(userId);
   const pageSize = 10;
   const params: any = {
     pageSize,
@@ -77,10 +82,15 @@ server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
 });
 
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  await ensureAuthQuietly();
+  const userId =
+    typeof request.params?.userId === "string"
+      ? request.params.userId
+      : undefined;
+  if (!userId) throw new Error("Missing userId in request");
+  await ensureAuthQuietly(userId);
   const fileId = request.params.uri.replace("gdrive:///", "");
   const readFileTool = tools[1]; // gdrive_read_file is the second tool
-  const result = await readFileTool.handler({ fileId });
+  const result = await readFileTool.handler({ fileId, userId });
 
   // Extract the file contents from the tool response
   const fileContents = result.content[0].text.split("\n\n")[1]; // Skip the "Contents of file:" prefix
@@ -116,27 +126,36 @@ function convertToolResponse(response: InternalToolResponse) {
 }
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  await ensureAuth();
+  const userId =
+    typeof request.params?.userId === "string"
+      ? request.params.userId
+      : undefined;
+  if (!userId) throw new Error("Missing userId in request");
+
   const tool = tools.find((t) => t.name === request.params.name);
   if (!tool) {
     throw new Error("Tool not found");
   }
 
-  const result = await tool.handler(request.params.arguments as any);
+  // Add userId to the arguments for the tool
+  const toolArgs = {
+    ...request.params.arguments,
+    userId,
+  };
+
+  const result = await tool.handler(toolArgs as any);
   return convertToolResponse(result);
 });
 
 async function startServer() {
   try {
     console.error("Starting server");
-    
-    // Add this line to force authentication at startup
-    await ensureAuth(); // This will trigger the auth flow if no valid credentials exist
-    
+
+    // Remove forced authentication at startup (multi-user: auth per request)
     const transport = new StdioServerTransport();
     await server.connect(transport);
 
-    // Set up periodic token refresh that never prompts for auth
+    // Set up periodic token refresh for all users
     setupTokenRefresh();
   } catch (error) {
     console.error("Error starting server:", error);
