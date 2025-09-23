@@ -32,7 +32,6 @@ All tools now require `userId` parameter:
 - `GET /users` - List all users
 - `GET /users/:userId/status` - Check user auth status
 - `GET /drive/files` - Test Drive access
-- `GET /sheets/:spreadsheetId` - Test Sheets access
 
 ### 5. **MCP Server Updates**
 

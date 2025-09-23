@@ -32,15 +32,6 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Demo login route to set userId (replace with real auth in production)
-// app.get("/login/:userId", (req, res) => {
-//   req.session.userId = req.params.userId;
-//   res.json({
-//     message: `Logged in as user ${req.params.userId}`,
-//     userId: req.params.userId,
-//     sessionId: req.sessionID,
-//   });
-// });
 app.get("/login/:userId", async (req, res) => {
   const userId = req.params.userId;
   req.session.userId = userId;
@@ -185,41 +176,6 @@ app.get("/drive/files", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: "Failed to access Google Drive",
-      details: error.message,
-    });
-  }
-});
-
-// 4. Test Google Sheets access
-app.get("/sheets/:spreadsheetId", async (req, res) => {
-  const userId = req.session.userId;
-  const { spreadsheetId } = req.params;
-
-  if (!userId)
-    return res.status(401).json({ error: "Login first to set userId" });
-
-  try {
-    const client = await getValidCredentials(userId);
-    const sheets = google.sheets({ version: "v4", auth: client });
-
-    // Get spreadsheet metadata
-    const metadata = await sheets.spreadsheets.get({
-      spreadsheetId,
-      fields: "properties,sheets.properties",
-    });
-
-    res.json({
-      userId,
-      spreadsheetId,
-      title: metadata.data.properties?.title,
-      sheets: metadata.data.sheets?.map((sheet) => ({
-        id: sheet.properties?.sheetId,
-        title: sheet.properties?.title,
-      })),
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: "Failed to access Google Sheets",
       details: error.message,
     });
   }
