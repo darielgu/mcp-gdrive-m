@@ -1,26 +1,36 @@
 import express from "express";
 import session from "express-session";
+import cors from "cors";
+import morgan from "morgan";
+import "dotenv/config";
+import { google } from "googleapis";
+
 import {
   getAuthUrl,
   handleOAuthCallback,
   getValidCredentials,
-  loadCredentialsQuietly,
 } from "./dist/auth.js";
-import { google } from "googleapis";
 import prisma from "./dist/tools/prisma.js";
-import "dotenv/config";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Use sessions to store userId (for demo; use a real auth system in production)
+// Middleware
+app.use(morgan("tiny"));
+app.use(express.json());
+app.use(
+  cors({
+    origin: "http://localhost:5173", // your Vite/React dev server
+    credentials: true,
+  })
+);
 app.use(
   session({
     secret:
       process.env.SESSION_SECRET || "your-secret-key-change-in-production",
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }, // 24 hours
+    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }, // 24h
   })
 );
 

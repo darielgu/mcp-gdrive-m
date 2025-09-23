@@ -36,10 +36,12 @@
     "@google-cloud/local-auth": "^3.0.1",
     "@modelcontextprotocol/sdk": "0.5.0",
     "@prisma/client": "^6.16.2",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "googleapis": "^144.0.0",
+    "morgan": "^1.10.1",
     "node-fetch": "^3.3.2",
     "open": "^10.2.0",
     "prisma": "^6.16.2"

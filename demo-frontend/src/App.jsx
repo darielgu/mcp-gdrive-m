@@ -1,162 +1,47 @@
-import { useEffect, useState } from "react";
-import "./App.css";
+import { useState } from "react";
 
 function App() {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [selected, setSelected] = useState(null);
-  const [doc, setDoc] = useState("");
-  const [docLoading, setDocLoading] = useState(false);
-  const [docError, setDocError] = useState("");
+  const [userId, setUserId] = useState("");
+  const [status, setStatus] = useState(null);
 
-  async function searchFiles(e) {
-    e?.preventDefault();
-    setError("");
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
+  const handleSignup = async () => {
     try {
-      const resp = await fetch(
-        `http://localhost:8000/api/search?q=${encodeURIComponent(query)}`
-      );
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      setResults(Array.isArray(data.files) ? data.files : []);
+      // Step 1: Call backend login
+      const loginRes = await fetch(`http://localhost:3001/login/${userId}`);
+      const loginData = await loginRes.json();
+      setStatus(`Signed up as ${loginData.userId}`);
+
+      // Step 2: Redirect to Google OAuth
+      window.location.href = `http://localhost:3001/auth/google?userId=${userId}`;
     } catch (err) {
-      setError("Failed to search. Is the backend running on :8000?");
-    } finally {
-      setLoading(false);
+      console.error(err);
+      alert("Error signing up");
     }
-  }
+  };
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <h1>Google Drive Search (MCP)</h1>
-      <form onSubmit={searchFiles} style={{ display: "flex", gap: 8 }}>
+    <div style={{ fontFamily: "sans-serif", padding: "2rem" }}>
+      <h1>Test Signup + Google Drive Auth</h1>
+
+      <label>
+        Enter a username:
         <input
           type="text"
-          placeholder="Search your Drive..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{ flex: 1, padding: 10, fontSize: 16 }}
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+          placeholder="e.g. dariel"
+          style={{ marginLeft: "1rem" }}
         />
-        <button type="submit" disabled={loading}>
-          {loading ? "Searching..." : "Search"}
-        </button>
-      </form>
+      </label>
 
-      {error && <div style={{ marginTop: 12, color: "crimson" }}>{error}</div>}
+      <button
+        onClick={handleSignup}
+        style={{ marginLeft: "1rem", padding: "0.5rem 1rem" }}
+      >
+        Sign Up & Connect Google Drive
+      </button>
 
-      <div style={{ marginTop: 16 }}>
-        {results.length > 0 ? (
-          <ul style={{ listStyle: "none", padding: 0 }}>
-            {results.map((file) => {
-              return (
-                <li
-                  key={file.id}
-                  onClick={async () => {
-                    setSelected(file);
-                    setDoc("");
-                    setDocError("");
-                    setDocLoading(true);
-                    try {
-                      const resp = await fetch(
-                        `http://localhost:8000/api/read?fileId=${encodeURIComponent(
-                          file.id
-                        )}`
-                      );
-                      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                      const data = await resp.json();
-                      setDoc(data.content || "");
-                    } catch (err) {
-                      setDocError("Failed to load document content.");
-                    } finally {
-                      setDocLoading(false);
-                    }
-                  }}
-                  style={{
-                    padding: "10px 0",
-                    borderBottom: "1px solid #eee",
-                    cursor: "pointer",
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>{file.name}</div>
-                  <div style={{ fontSize: 12, color: "#666" }}>{file.id}</div>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          !loading && <div style={{ color: "#666" }}>No results</div>
-        )}
-      </div>
-
-      {selected && (
-        <div
-          onClick={() => {
-            setSelected(null);
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 1000,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 8,
-              width: "min(900px, 95vw)",
-              maxHeight: "85vh",
-              overflow: "auto",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", padding: 16 }}>
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: 18,
-                  flex: 1,
-                  color: "black",
-                }}
-              >
-                {selected.name}
-              </div>
-              <button onClick={() => setSelected(null)}>Close</button>
-            </div>
-            <div style={{ padding: 16, borderTop: "1px solid #eee" }}>
-              {docLoading && <div>Loading...</div>}
-              {docError && (
-                <div style={{ color: "crimson", marginBottom: 8 }}>
-                  {docError}
-                </div>
-              )}
-              {!docLoading && !docError && (
-                <pre
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    color: "black",
-                  }}
-                >
-                  {doc || "No content"}
-                </pre>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {status && <p>{status}</p>}
     </div>
   );
 }
