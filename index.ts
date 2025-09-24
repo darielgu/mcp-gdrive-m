@@ -126,9 +126,10 @@ function convertToolResponse(response: InternalToolResponse) {
 }
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  // Get userId from tool arguments instead of request params
   const userId =
-    typeof request.params?.userId === "string"
-      ? request.params.userId
+    typeof request.params?.arguments?.userId === "string"
+      ? request.params.arguments.userId
       : undefined;
   if (!userId) throw new Error("Missing userId in request");
 
@@ -137,11 +138,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     throw new Error("Tool not found");
   }
 
-  // Add userId to the arguments for the tool
-  const toolArgs = {
-    ...request.params.arguments,
-    userId,
-  };
+  // Use the arguments directly (userId is already included)
+  const toolArgs = request.params.arguments;
 
   const result = await tool.handler(toolArgs as any);
   return convertToolResponse(result);

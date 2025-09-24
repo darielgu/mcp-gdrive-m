@@ -1,47 +1,73 @@
 import { useState } from "react";
+import axios from "axios";
 
 function App() {
-  const [userId, setUserId] = useState("");
-  const [status, setStatus] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState("");
 
-  const handleSignup = async () => {
+  const handleSignUp = async (e) => {
+    e.preventDefault();
+    setStatus("Signing up...");
+
     try {
-      // Step 1: Call backend login
-      const loginRes = await fetch(`http://localhost:3001/login/${userId}`);
-      const loginData = await loginRes.json();
-      setStatus(`Signed up as ${loginData.userId}`);
+      const res = await axios.post(
+        "http://localhost:3001/signup",
+        { email, password },
+        { withCredentials: true } // important: keep session cookie
+      );
 
-      // Step 2: Redirect to Google OAuth
-      window.location.href = `http://localhost:3001/auth/google?userId=${userId}`;
+      setStatus(`Signed up as ${res.data.userId}`);
+
+      // Redirect user to Google OAuth
+      if (res.data.authUrl) {
+        window.location.href = res.data.authUrl;
+      }
     } catch (err) {
       console.error(err);
-      alert("Error signing up");
+      if (err.response) {
+        setStatus(`Error: ${err.response.data.error}`);
+      } else {
+        setStatus("Unexpected error");
+      }
     }
   };
 
   return (
-    <div style={{ fontFamily: "sans-serif", padding: "2rem" }}>
-      <h1>Test Signup + Google Drive Auth</h1>
-
-      <label>
-        Enter a username:
-        <input
-          type="text"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          placeholder="e.g. dariel"
-          style={{ marginLeft: "1rem" }}
-        />
-      </label>
-
-      <button
-        onClick={handleSignup}
-        style={{ marginLeft: "1rem", padding: "0.5rem 1rem" }}
-      >
-        Sign Up & Connect Google Drive
-      </button>
-
-      {status && <p>{status}</p>}
+    <div
+      style={{
+        maxWidth: "400px",
+        margin: "2rem auto",
+        fontFamily: "sans-serif",
+      }}
+    >
+      <h2>Create Account</h2>
+      <form onSubmit={handleSignUp}>
+        <div style={{ marginBottom: "1rem" }}>
+          <label>Email:</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={{ width: "100%", padding: "8px", marginTop: "4px" }}
+          />
+        </div>
+        <div style={{ marginBottom: "1rem" }}>
+          <label>Password:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{ width: "100%", padding: "8px", marginTop: "4px" }}
+          />
+        </div>
+        <button type="submit" style={{ padding: "10px 20px" }}>
+          Sign Up
+        </button>
+      </form>
+      {status && <p style={{ marginTop: "1rem" }}>{status}</p>}
     </div>
   );
 }

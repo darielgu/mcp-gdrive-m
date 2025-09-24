@@ -8,9 +8,7 @@ load_dotenv()
 
 server_params = get_gdrive_server_params()
 
-# Pick the userId you authenticated earlier
-USER_ID = os.getenv("GDRIVE_TEST_USER_ID", "test-user-1758592253842")
-USER_ID = 'user-1758598086483'
+USER_ID = os.getenv("GDRIVE_TEST_USER_ID", "test-ID")
 
 async def poc(folder_id: str):
     async with stdio_client(server_params) as (read, write): 
